@@ -2,31 +2,45 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+# Mémoire des utilisateurs actifs
 active_users = {}
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
-    data = request.get_json(force=True)
+    try:
+        # Lecture sécurisée du JSON
+        data = request.get_json(force=True, silent=True)
 
-    user_id = data.get("user_id")
-    user_name = data.get("user_name")
-    message = data.get("message")
-    bot_name = data.get("bot_name", "robot")
+        if not data:
+            return jsonify("Erreur: JSON vide")
 
-    msg_lower = (message or "").lower()
+        user_id = data.get("user_id", "unknown")
+        user_name = data.get("user_name", "inconnu")
+        message = data.get("message", "")
+        bot_name = data.get("bot_name", "robot")
 
-    if bot_name in msg_lower:
-        active_users[user_id] = True
-        return jsonify(f"{user_name}, je t'écoute.")
+        msg_lower = (message or "").lower()
 
-    if "tais-toi" in msg_lower:
-        active_users.pop(user_id, None)
-        return jsonify("...")
+        # Activation
+        if bot_name in msg_lower:
+            active_users[user_id] = True
+            return jsonify(f"{user_name}, je t'écoute.")
 
-    if user_id not in active_users:
-        return jsonify("")
+        # Désactivation
+        if "tais-toi" in msg_lower:
+            active_users.pop(user_id, None)
+            return jsonify("...")
 
-    return jsonify("Je fonctionne sans IA pour test.")
+        # Si pas actif → ignore
+        if user_id not in active_users:
+            return jsonify("")
+
+        # Réponse test (sans IA)
+        return jsonify("Je fonctionne sans IA pour test.")
+
+    except Exception as e:
+        return jsonify("Erreur serveur interne: " + str(e))
+
 
 @app.route("/")
 def home():
