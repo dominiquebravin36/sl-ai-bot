@@ -73,3 +73,5 @@ IA:
 @app.route("/")
 def home():
     return "SL AI BOT RUNNING"
+
+#merde a celui qui lira
