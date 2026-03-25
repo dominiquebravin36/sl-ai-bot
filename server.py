@@ -3,6 +3,7 @@ import requests
 import os
 
 app = Flask(__name__)
+app.config['JSON_AS_ASCII'] = False
 
 HF_TOKEN = os.environ.get("HF_TOKEN")
 MODEL_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct"
