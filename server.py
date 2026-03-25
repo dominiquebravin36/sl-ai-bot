@@ -13,7 +13,7 @@ def chat():
     message = data.get("message")
     bot_name = data.get("bot_name", "robot")
 
-    msg_lower = message.lower()
+    msg_lower = (message or "").lower()
 
     if bot_name in msg_lower:
         active_users[user_id] = True
