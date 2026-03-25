@@ -1,39 +1,8 @@
 from flask import Flask, request, jsonify
-import requests
-import os
 
 app = Flask(__name__)
-app.config["JSON_AS_ASCII"] = False
-
-HF_TOKEN = os.environ.get("HF_TOKEN")
-MODEL_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct"
-
-headers = {
-    "Authorization": f"Bearer {HF_TOKEN}"
-}
 
 active_users = {}
-
-def query_hf(prompt):
-    try:
-        response = requests.post(
-            MODEL_URL,
-            headers=headers,
-            json={"inputs": prompt},
-            timeout=15
-        )
-        result = response.json()
-
-        if isinstance(result, list):
-            return result[0].get("generated_text", "Réponse vide")
-
-        if "error" in result:
-            return "Erreur IA"
-
-        return str(result)
-
-    except:
-        return "Erreur IA"
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
@@ -57,21 +26,8 @@ def chat():
     if user_id not in active_users:
         return jsonify("")
 
-    prompt = f"""
-Tu es un personnage dans Second Life.
-Réponds en français, naturellement et brièvement.
-
-Utilisateur: {message}
-IA:
-"""
-
-    answer = query_hf(prompt)
-    answer = answer.replace(prompt, "").strip()
-
-    return jsonify(answer[:1000])
+    return jsonify("Je fonctionne sans IA pour test.")
 
 @app.route("/")
 def home():
     return "SL AI BOT RUNNING"
-
-#merde a celui qui lira
