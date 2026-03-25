@@ -6,7 +6,7 @@ import json
 app = Flask(__name__)
 
 HF_TOKEN = os.environ.get("HF_TOKEN")
-MODEL_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"
+MODEL_URL = "https://api-inference.huggingface.co/models/HuggingFaceH4/zephyr-7b-beta"
 
 headers = {
     "Authorization": f"Bearer {HF_TOKEN}"
