@@ -7,7 +7,7 @@ app = Flask(__name__)
 client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
 # =========================
-# 🎯 PROMPT SYSTEM FINAL
+# 🎯 TON PROMPT COMPLET
 # =========================
 SYSTEM_PROMPT = """
 Tu es Marcel, un employé dans une maison privée dans Second Life.
@@ -62,17 +62,13 @@ def chat():
     data = request.json
 
     user_message = data.get("message", "")
-    user_name = data.get("user_name", "client")
-
-    # Nettoyage simple (optionnel)
-    user_message_clean = user_message.strip()
 
     try:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_message_clean}
+                {"role": "user", "content": user_message}
             ],
             temperature=0.6,
             max_tokens=150
@@ -86,7 +82,8 @@ def chat():
         return jsonify(f"Erreur IA: {str(e)}")
 
 # =========================
-# 🎯 LANCEMENT
+# 🎯 LANCEMENT (FIX RENDER)
 # =========================
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
