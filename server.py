@@ -61,7 +61,7 @@ def chat():
         return jsonify(answer[:800])
 
     except Exception as e:
-        return jsonify("Erreur IA")
+        return jsonify("Erreur IA: " + str(e))
 
 @app.route("/")
 def home():
