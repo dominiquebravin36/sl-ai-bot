@@ -62,7 +62,7 @@ Règle critique :
 - Tu dois toujours fournir une réponse
 - Même courte
 - Tu ne dois jamais répondre par une réponse vide
-
+"""
 @app.route("/api/chat", methods=["POST"])
 def chat():
     data = request.json
