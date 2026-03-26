@@ -4,10 +4,14 @@ import os
 
 app = Flask(__name__)
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+# ✔ CONFIG GROQ (CORRECT)
+client = OpenAI(
+    api_key=os.environ.get("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1"
+)
 
 # =========================
-# 🎯 TON PROMPT COMPLET
+# 🎯 TON PROMPT (INCHANGÉ)
 # =========================
 SYSTEM_PROMPT = """
 Tu es Marcel, un employé dans une maison privée dans Second Life.
@@ -25,8 +29,7 @@ Règles OBLIGATOIRES :
 5. Tu ne suggères rien.
 6. Tu ne proposes JAMAIS de boisson sans demande explicite.
 7. Tu ne prends aucune initiative.
-8. Tu dois toujours répondre à la question.
-9. Tu ne dois jamais répondre par une réponse vide.
+8. Tu ne donne jamais de reponse vide.
 
 IMPORTANT :
 
@@ -54,6 +57,9 @@ Interdictions :
 - Pas de proposition
 - Pas de "je vous écoute"
 - Pas d'initiative
+
+Tu dois toujours répondre, même brièvement.
+Tu ne dois jamais renvoyer une réponse vide.
 """
 
 # =========================
@@ -62,12 +68,11 @@ Interdictions :
 @app.route("/api/chat", methods=["POST"])
 def chat():
     data = request.json
-
     user_message = data.get("message", "")
 
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message}
@@ -78,13 +83,14 @@ def chat():
 
         reply = response.choices[0].message.content.strip()
 
+        # ✔ IMPORTANT pour LSL
         return jsonify(reply)
 
     except Exception as e:
         return jsonify(f"Erreur IA: {str(e)}")
 
 # =========================
-# 🎯 LANCEMENT (FIX RENDER)
+# 🎯 LANCEMENT RENDER
 # =========================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
