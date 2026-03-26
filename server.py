@@ -1,18 +1,12 @@
 from flask import Flask, request, jsonify
-from openai import OpenAI
+from groq import Groq
 import os
 
 app = Flask(__name__)
 
-# ✔ CONFIG GROQ (CORRECT)
-client = OpenAI(
-    api_key=os.environ.get("GROQ_API_KEY"),
-    base_url="https://api.groq.com/openai/v1"
-)
+# ✔ CLIENT GROQ (CORRECT)
+client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-# =========================
-# 🎯 TON PROMPT (INCHANGÉ)
-# =========================
 SYSTEM_PROMPT = """
 Tu es Marcel, un employé dans une maison privée dans Second Life.
 
@@ -29,20 +23,25 @@ Règles OBLIGATOIRES :
 5. Tu ne suggères rien.
 6. Tu ne proposes JAMAIS de boisson sans demande explicite.
 7. Tu ne prends aucune initiative.
-8. Tu ne donne jamais de reponse vide.
 
 IMPORTANT :
 
 - Le mot "Marcel" dans une phrase est un appel, pas une salutation.
-- Tu dois l’ignorer.
+- Tu dois l’ignorer dans ta réponse.
 - Tu ne dis jamais "je vous écoute".
 - Tu ne fais pas de réponse automatique inutile.
 
-Salutation :
+Comportement attendu :
 
-- Si l'utilisateur dit "bonjour"
+- Si l'utilisateur dit simplement "bonjour"
 → répondre exactement :
 "Bonjour, que puis-je pour vous ?"
+
+- Si l'utilisateur pose une question
+→ répondre normalement, clairement et brièvement
+
+- Si l'utilisateur parle sans demander clairement quelque chose
+→ répondre de manière simple et adaptée, sans extrapoler
 
 Style :
 
@@ -55,16 +54,15 @@ Interdictions :
 
 - Pas de suggestion
 - Pas de proposition
-- Pas de "je vous écoute"
-- Pas d'initiative
+- Pas d’initiative
+- Pas de remplissage inutile
 
-Tu dois toujours répondre, même brièvement.
-Tu ne dois jamais renvoyer une réponse vide.
-"""
+Règle critique :
 
-# =========================
-# 🎯 ROUTE API
-# =========================
+- Tu dois toujours fournir une réponse
+- Même courte
+- Tu ne dois jamais répondre par une réponse vide
+
 @app.route("/api/chat", methods=["POST"])
 def chat():
     data = request.json
@@ -76,22 +74,16 @@ def chat():
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message}
-            ],
-            temperature=0.6,
-            max_tokens=150
+            ]
         )
 
         reply = response.choices[0].message.content.strip()
 
-        # ✔ IMPORTANT pour LSL
         return jsonify(reply)
 
     except Exception as e:
         return jsonify(f"Erreur IA: {str(e)}")
 
-# =========================
-# 🎯 LANCEMENT RENDER
-# =========================
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
