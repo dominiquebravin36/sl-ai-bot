@@ -185,7 +185,7 @@ def set_role():
 
     save_memory(memory)
 
-    return jsonify("null")
+    return jsonify("")
 
 
 # --- NOUVEAU : GET ROLE
@@ -200,6 +200,14 @@ def get_role():
     return jsonify(role)
 
 
+# --- NOUVEAU : reste reveillé
+@app.route("/ping")
+def ping():
+    return "ok"
+
+
+
+# --- Fin du script
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
