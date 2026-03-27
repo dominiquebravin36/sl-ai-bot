@@ -230,6 +230,38 @@ def get_role():
 
     return jsonify(role)
 
+# --- NOUVEAU : DONNE LA LISTE DES CONNAISSANCES
+@app.route("/get_facts", methods=["GET"])
+def get_facts():
+    facts_list = []
+    index = 1
+
+    for name, info in memory["users"].items():
+        facts = info.get("facts", [])
+        for f in facts:
+            facts_list.append(f"{index}. {name} {f}")
+            index += 1
+
+    return jsonify(facts_list)
+
+# --- NOUVEAU : SUPPRIME UNE CONNAISSANCE
+@app.route("/delete_fact", methods=["POST"])
+def delete_fact():
+    data = request.json
+    index_to_delete = int(data.get("index", -1))
+
+    index = 1
+
+    for name, info in memory["users"].items():
+        facts = info.get("facts", [])
+        for i in range(len(facts)):
+            if index == index_to_delete:
+                del memory["users"][name]["facts"][i]
+                save_memory(memory)
+                return jsonify("ok")
+            index += 1
+
+    return jsonify("not_found")
 
 # --- NOUVEAU : reste reveillé
 @app.route("/ping")
