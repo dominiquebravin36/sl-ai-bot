@@ -142,11 +142,20 @@ def chat():
     user_id = data.get("user_id", "default")
 
     # --- AJOUT : détection apprentissage simple
-    words = user_message.split(" ")
-    if len(words) > 2:
-        name = words[0].lower()
-        fact = " ".join(words[1:])
-        add_fact(name, fact)
+msg = user_message.lower()
+
+if "retiens que" in msg:
+    parts = user_message.split("retiens que")
+
+    if len(parts) > 1:
+        content = parts[1].strip()
+
+        words = content.split(" ")
+
+        if len(words) > 1:
+            name = words[0].lower()
+            fact = " ".join(words[1:])
+            add_fact(name, fact)
 
     # --- init mémoire conversation
     if user_id not in memory["conversations"]:
