@@ -1,13 +1,27 @@
 from flask import Flask, request, jsonify
 from groq import Groq
 import os
+import json
 
 app = Flask(__name__)
 
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
 
-# --- NOUVEAU : mémoire par utilisateur
-user_memory = {}
+# --- NOUVEAU : fichier mémoire persistante
+DATA_FILE = "memory.json"
+
+def load_memory():
+    if not os.path.exists(DATA_FILE):
+        return {}
+    with open(DATA_FILE, "r") as f:
+        return json.load(f)
+
+def save_memory(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f)
+
+# --- NOUVEAU : mémoire persistante chargée
+user_memory = load_memory()
 
 SYSTEM_PROMPT = """
 Tu es Marcel, un employé dans une maison privée dans Second Life.
@@ -89,14 +103,14 @@ def chat():
     user_message = data.get("message", "")
     user_id = data.get("user_id", "default")
 
-    # --- NOUVEAU : init mémoire
+    # --- init mémoire utilisateur
     if user_id not in user_memory:
         user_memory[user_id] = []
 
-    # --- NOUVEAU : ajout message utilisateur
+    # --- ajout message utilisateur
     user_memory[user_id].append({"role": "user", "content": user_message})
 
-    # --- NOUVEAU : garder 20 derniers messages
+    # --- garder 20 derniers messages
     user_memory[user_id] = user_memory[user_id][-20:]
 
     try:
@@ -109,8 +123,11 @@ def chat():
 
         reply = response.choices[0].message.content.strip()
 
-        # --- NOUVEAU : stocker réponse IA
+        # --- stocker réponse IA
         user_memory[user_id].append({"role": "assistant", "content": reply})
+
+        # --- NOUVEAU : sauvegarde persistante
+        save_memory(user_memory)
 
         return jsonify(reply)
 
