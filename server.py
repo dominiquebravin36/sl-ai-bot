@@ -20,8 +20,14 @@ def save_memory(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
-# --- NOUVEAU : mémoire persistante chargée
-user_memory = load_memory()
+# --- NOUVEAU : structure mémoire
+memory = load_memory()
+
+if "conversations" not in memory:
+    memory["conversations"] = {}
+
+if "users" not in memory:
+    memory["users"] = {}
 
 SYSTEM_PROMPT = """
 Tu es Marcel, un employé dans une maison privée dans Second Life.
@@ -103,36 +109,68 @@ def chat():
     user_message = data.get("message", "")
     user_id = data.get("user_id", "default")
 
-    # --- init mémoire utilisateur
-    if user_id not in user_memory:
-        user_memory[user_id] = []
+    # --- init mémoire conversation
+    if user_id not in memory["conversations"]:
+        memory["conversations"][user_id] = []
 
     # --- ajout message utilisateur
-    user_memory[user_id].append({"role": "user", "content": user_message})
+    memory["conversations"][user_id].append({"role": "user", "content": user_message})
 
     # --- garder 20 derniers messages
-    user_memory[user_id] = user_memory[user_id][-20:]
+    memory["conversations"][user_id] = memory["conversations"][user_id][-20:]
 
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT}
-            ] + user_memory[user_id]
+            ] + memory["conversations"][user_id]
         )
 
         reply = response.choices[0].message.content.strip()
 
         # --- stocker réponse IA
-        user_memory[user_id].append({"role": "assistant", "content": reply})
+        memory["conversations"][user_id].append({"role": "assistant", "content": reply})
 
-        # --- NOUVEAU : sauvegarde persistante
-        save_memory(user_memory)
+        # --- sauvegarde persistante
+        save_memory(memory)
 
         return jsonify(reply)
 
     except Exception as e:
         return jsonify(f"Erreur IA: {str(e)}")
+
+
+# --- NOUVEAU : SET ROLE
+@app.route("/set_role", methods=["POST"])
+def set_role():
+    data = request.json
+    user_id = data.get("user_id")
+    role = data.get("role", "guest")
+
+    if role not in ["owner", "staff", "guest"]:
+        role = "guest"
+
+    memory["users"][user_id] = {
+        "role": role
+    }
+
+    save_memory(memory)
+
+    return jsonify("ok")
+
+
+# --- NOUVEAU : GET ROLE
+@app.route("/get_role", methods=["POST"])
+def get_role():
+    data = request.json
+    user_id = data.get("user_id")
+
+    user = memory["users"].get(user_id, {})
+    role = user.get("role", "guest")
+
+    return jsonify(role)
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
