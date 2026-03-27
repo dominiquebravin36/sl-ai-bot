@@ -142,20 +142,20 @@ def chat():
     user_id = data.get("user_id", "default")
 
     # --- AJOUT : détection apprentissage simple
-msg = user_message.lower()
+    msg = user_message.lower()
 
-if "retiens que" in msg:
-    parts = user_message.split("retiens que")
+    if "retiens que" in msg:
+        parts = user_message.split("retiens que")
 
-    if len(parts) > 1:
-        content = parts[1].strip()
+        if len(parts) > 1:
+            content = parts[1].strip()
 
-        words = content.split(" ")
+            words = content.split(" ")
 
-        if len(words) > 1:
-            name = words[0].lower()
-            fact = " ".join(words[1:])
-            add_fact(name, fact)
+            if len(words) > 1:
+                name = words[0].lower()
+                fact = " ".join(words[1:])
+                add_fact(name, fact)
 
     # --- init mémoire conversation
     if user_id not in memory["conversations"]:
@@ -215,7 +215,6 @@ def set_role():
     if role not in ["owner", "staff", "guest"]:
         role = "guest"
 
-    # --- MODIFICATION : stockage PAR NOM
     name = data.get("user_name", "unknown").lower()
 
     if name not in memory["users"]:
@@ -239,6 +238,7 @@ def get_role():
 
     return jsonify(role)
 
+
 # --- NOUVEAU : DONNE LA LISTE DES CONNAISSANCES
 @app.route("/get_facts", methods=["GET"])
 def get_facts():
@@ -252,6 +252,7 @@ def get_facts():
             index += 1
 
     return jsonify(facts_list)
+
 
 # --- NOUVEAU : SUPPRIME UNE CONNAISSANCE
 @app.route("/delete_fact", methods=["POST"])
@@ -271,15 +272,15 @@ def delete_fact():
             index += 1
 
     return jsonify("not_found")
-    
+
+
 # --- NOUVEAU : RESET CONNAISSANCES
 @app.route("/reset_memory", methods=["POST"])
 def reset_memory():
     data = request.json
 
-    # --- sécurité minimale
     if not data or data.get("secret") != "07042023":
-    return jsonify("unauthorized")
+        return jsonify("unauthorized")
 
     global memory
 
@@ -289,8 +290,10 @@ def reset_memory():
     }
 
     save_memory(memory)
-    return jsonify("LA MEMOIRE EST VIDE)
-    
+
+    return jsonify("LA MEMOIRE EST VIDE")
+
+
 # --- NOUVEAU : reste reveillé
 @app.route("/ping")
 def ping():
