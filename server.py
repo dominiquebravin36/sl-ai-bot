@@ -185,7 +185,7 @@ def set_role():
 
     save_memory(memory)
 
-    return jsonify("")
+    return ""
 
 
 # --- NOUVEAU : GET ROLE
