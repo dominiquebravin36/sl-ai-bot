@@ -148,6 +148,9 @@ def chat():
 # --- AJOUT : détection apprentissage simple
 msg = user_message.lower()
 
+# --- AJOUT : détection apprentissage simple
+msg = user_message.lower()
+
 if "retiens que" in msg:
     parts = user_message.split("retiens que")
 
@@ -160,7 +163,6 @@ if "retiens que" in msg:
             name = words[0].lower()
             fact = " ".join(words[1:])
 
-            # --- AJOUT : contrôle propriétaire
             if data.get("user_name", "").lower() not in ["domi", "julien"]:
                 return jsonify("Je ne suis pas autorisé à apprendre de vous.")
 
