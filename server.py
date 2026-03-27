@@ -29,6 +29,20 @@ if "conversations" not in memory:
 if "users" not in memory:
     memory["users"] = {}
 
+# --- AJOUT : fonction ajout facts
+def add_fact(name, fact):
+    name = name.lower()
+
+    if name not in memory["users"]:
+        memory["users"][name] = {"role": "guest", "facts": []}
+
+    if "facts" not in memory["users"][name]:
+        memory["users"][name]["facts"] = []
+
+    memory["users"][name]["facts"].append(fact)
+
+    save_memory(memory)
+
 SYSTEM_PROMPT = """
 Tu es Marcel, un employé dans une maison privée dans Second Life.
 
@@ -127,6 +141,13 @@ def chat():
     user_message = data.get("message", "")
     user_id = data.get("user_id", "default")
 
+    # --- AJOUT : détection apprentissage simple
+    words = user_message.split(" ")
+    if len(words) > 2:
+        name = words[0].lower()
+        fact = " ".join(words[1:])
+        add_fact(name, fact)
+
     # --- init mémoire conversation
     if user_id not in memory["conversations"]:
         memory["conversations"][user_id] = []
@@ -145,11 +166,20 @@ def chat():
             role = info.get("role", "guest")
             roles_text += f"- {name} : {role}\n"
 
+    # --- AJOUT : injecter facts
+    facts_text = ""
+    if memory["users"]:
+        facts_text = "\nInformations connues :\n"
+        for name, info in memory["users"].items():
+            facts = info.get("facts", [])
+            for f in facts:
+                facts_text += f"- {name} : {f}\n"
+
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT + roles_text}
+                {"role": "system", "content": SYSTEM_PROMPT + roles_text + facts_text}
             ] + memory["conversations"][user_id]
         )
 
@@ -179,9 +209,10 @@ def set_role():
     # --- MODIFICATION : stockage PAR NOM
     name = data.get("user_name", "unknown").lower()
 
-    memory["users"][name] = {
-        "role": role
-    }
+    if name not in memory["users"]:
+        memory["users"][name] = {}
+
+    memory["users"][name]["role"] = role
 
     save_memory(memory)
 
@@ -204,7 +235,6 @@ def get_role():
 @app.route("/ping")
 def ping():
     return ""
-
 
 
 # --- Fin du script
