@@ -4,8 +4,10 @@ import os
 
 app = Flask(__name__)
 
-# ✔ CLIENT GROQ (CORRECT)
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+
+# --- NOUVEAU : mémoire par utilisateur
+user_memory = {}
 
 SYSTEM_PROMPT = """
 Tu es Marcel, un employé dans une maison privée dans Second Life.
@@ -80,21 +82,35 @@ Règle critique :
 - dire une banalité ou rien du tout
 - Tu ne dois jamais répondre par une réponse vide
 """
+
 @app.route("/api/chat", methods=["POST"])
 def chat():
     data = request.json
     user_message = data.get("message", "")
+    user_id = data.get("user_id", "default")
+
+    # --- NOUVEAU : init mémoire
+    if user_id not in user_memory:
+        user_memory[user_id] = []
+
+    # --- NOUVEAU : ajout message utilisateur
+    user_memory[user_id].append({"role": "user", "content": user_message})
+
+    # --- NOUVEAU : garder 20 derniers messages
+    user_memory[user_id] = user_memory[user_id][-20:]
 
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_message}
-            ]
+                {"role": "system", "content": SYSTEM_PROMPT}
+            ] + user_memory[user_id]
         )
 
         reply = response.choices[0].message.content.strip()
+
+        # --- NOUVEAU : stocker réponse IA
+        user_memory[user_id].append({"role": "assistant", "content": reply})
 
         return jsonify(reply)
 
