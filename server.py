@@ -185,7 +185,7 @@ def set_role():
 
     save_memory(memory)
 
-    return jsonify("")
+    return ("", 204)
 
 
 # --- NOUVEAU : GET ROLE
@@ -203,7 +203,7 @@ def get_role():
 # --- NOUVEAU : reste reveillé
 @app.route("/ping")
 def ping():
-    return "ok"
+    return ("", 204)
 
 
 
