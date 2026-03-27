@@ -271,7 +271,26 @@ def delete_fact():
             index += 1
 
     return jsonify("not_found")
+    
+# --- NOUVEAU : RESET CONNAISSANCES
+@app.route("/reset_memory", methods=["POST"])
+def reset_memory():
+    data = request.json
 
+    # --- sécurité minimale
+    if not data or data.get("secret") != "07042023":
+        return jsonify("unauthorized")
+
+    global memory
+
+    memory = {
+        "conversations": {},
+        "users": {}
+    }
+
+    save_memory(memory)
+    return jsonify("LA MEMOIRE EST VIDE")
+    
 # --- NOUVEAU : reste reveillé
 @app.route("/ping")
 def ping():
