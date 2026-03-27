@@ -123,9 +123,9 @@ def chat():
     roles_text = ""
     if memory["users"]:
         roles_text = "\nRôles connus des personnes :\n"
-        for uid, info in memory["users"].items():
+        for name, info in memory["users"].items():
             role = info.get("role", "guest")
-            roles_text += f"- {uid} : {role}\n"
+            roles_text += f"- {name} : {role}\n"
 
     try:
         response = client.chat.completions.create(
@@ -153,13 +153,15 @@ def chat():
 @app.route("/set_role", methods=["POST"])
 def set_role():
     data = request.json
-    user_id = data.get("user_id")
     role = data.get("role", "guest")
 
     if role not in ["owner", "staff", "guest"]:
         role = "guest"
 
-    memory["users"][user_id] = {
+    # --- MODIFICATION : stockage PAR NOM
+    name = data.get("user_name", "unknown").lower()
+
+    memory["users"][name] = {
         "role": role
     }
 
