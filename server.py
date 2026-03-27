@@ -119,11 +119,19 @@ def chat():
     # --- garder 20 derniers messages
     memory["conversations"][user_id] = memory["conversations"][user_id][-20:]
 
+    # --- NOUVEAU : injecter les rôles connus
+    roles_text = ""
+    if memory["users"]:
+        roles_text = "\nRôles connus des personnes :\n"
+        for uid, info in memory["users"].items():
+            role = info.get("role", "guest")
+            roles_text += f"- {uid} : {role}\n"
+
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT}
+                {"role": "system", "content": SYSTEM_PROMPT + roles_text}
             ] + memory["conversations"][user_id]
         )
 
