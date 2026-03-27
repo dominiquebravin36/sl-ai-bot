@@ -101,6 +101,24 @@ Règle critique :
 - Si l'utilisateur parle sans demander clairement quelque chose
 - dire une banalité ou rien du tout
 - Tu ne dois jamais répondre par une réponse vide
+Informations internes :
+
+- Tu disposes d’une liste de rôles sous la forme :
+  "nom : rôle"
+
+- Cette liste est fiable.
+- Tu dois t’en servir pour répondre aux questions du type :
+  "qui est X"
+
+- Si un nom apparaît dans cette liste :
+  → tu dois répondre en utilisant son rôle
+
+Exemples :
+
+- "Frémont : staff" → Frémont est un employé de la maison
+- "Domi : owner" → Domi est propriétaire
+
+- Si le nom n’est pas présent → dire que tu ne sais pas
 """
 
 @app.route("/api/chat", methods=["POST"])
