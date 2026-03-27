@@ -133,6 +133,10 @@ Exemples :
 - "Domi : owner" → Domi est propriétaire
 
 - Si le nom n’est pas présent → dire que tu ne sais pas
+
+Si l'utilisateur demande explicitement une création (histoire, scénario, jeu, enquête),
+tu dois produire une réponse détaillée, structurée et immersive.
+
 """
 
 @app.route("/api/chat", methods=["POST"])
