@@ -279,7 +279,7 @@ def reset_memory():
 
     # --- sécurité minimale
     if not data or data.get("secret") != "07042023":
-        return jsonify("unauthorized")
+    return jsonify("unauthorized")
 
     global memory
 
@@ -289,7 +289,7 @@ def reset_memory():
     }
 
     save_memory(memory)
-    return jsonify("LA MEMOIRE EST VIDE")
+    return jsonify("LA MEMOIRE EST VIDE)
     
 # --- NOUVEAU : reste reveillé
 @app.route("/ping")
