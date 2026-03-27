@@ -141,21 +141,26 @@ def chat():
     user_message = data.get("message", "")
     user_id = data.get("user_id", "default")
 
-    # --- AJOUT : détection apprentissage simple
-    msg = user_message.lower()
+# --- AJOUT : détection apprentissage simple
+msg = user_message.lower()
 
-    if "retiens que" in msg:
-        parts = user_message.split("retiens que")
+if "retiens que" in msg:
+    parts = user_message.split("retiens que")
 
-        if len(parts) > 1:
-            content = parts[1].strip()
+    if len(parts) > 1:
+        content = parts[1].strip()
 
-            words = content.split(" ")
+        words = content.split(" ")
 
-            if len(words) > 1:
-                name = words[0].lower()
-                fact = " ".join(words[1:])
-                add_fact(name, fact)
+        if len(words) > 1:
+            name = words[0].lower()
+            fact = " ".join(words[1:])
+
+            # --- AJOUT : contrôle propriétaire
+            if data.get("user_name", "").lower() not in ["domi", "julien"]:
+                return jsonify("Je ne suis pas autorisé à apprendre de vous.")
+
+            add_fact(name, fact)
 
     # --- init mémoire conversation
     if user_id not in memory["conversations"]:
