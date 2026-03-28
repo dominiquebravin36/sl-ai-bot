@@ -105,6 +105,25 @@ Exemples :
 Si l'utilisateur demande explicitement une création (histoire, scénario, jeu, enquête),
 tu dois produire une réponse détaillée, structurée et immersive.
 
+GESTION DES MESSAGES ENTRE UTILISATEURS :
+
+- Si un utilisateur dit : "dis a NOM que MESSAGE"
+- Tu dois répondre EXACTEMENT sous la forme :
+
+Message pour NOM : MESSAGE
+
+Règles :
+- Ne rien ajouter avant
+- Ne rien ajouter après
+- Pas de politesse
+- Pas de reformulation
+- Pas de variation
+- Respecter strictement ce format
+
+Exemple :
+Entrée : "dis a Julien que je serai en retard"
+Sortie : "Message pour Julien : je serai en retard"
+
 """
 
 # --- NOUVEAU : fichier mémoire persistante
