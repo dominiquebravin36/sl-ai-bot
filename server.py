@@ -362,17 +362,11 @@ def get_facts():
     facts_list = []
     index = 1
 
-    txt_facts = read_facts()
-    for name, fact in txt_facts:
+    facts = read_facts()
+
+    for name, fact in facts:
         facts_list.append(f"{index}. {name} {fact}")
         index += 1
-
-    # ancien système conservé
-    for name, info in memory["users"].items():
-        facts = info.get("facts", [])
-        for f in facts:
-            facts_list.append(f"{index}. {name} {f}")
-            index += 1
 
     return jsonify(facts_list)
 
@@ -383,18 +377,26 @@ def delete_fact():
     data = request.json
     index_to_delete = int(data.get("index", -1))
 
-    index = 1
+    if not os.path.exists(FACTS_FILE):
+        return jsonify("not_found")
 
-    for name, info in memory["users"].items():
-        facts = info.get("facts", [])
-        for i in range(len(facts)):
-            if index == index_to_delete:
-                del memory["users"][name]["facts"][i]
-                save_memory(memory)
-                return jsonify("ok")
-            index += 1
+    lines = []
+    with open(FACTS_FILE, "r") as f:
+        lines = f.readlines()
 
-    return jsonify("not_found")
+    if index_to_delete < 1 or index_to_delete > len(lines):
+        return jsonify("not_found")
+
+    del lines[index_to_delete - 1]
+
+    with open(FACTS_FILE, "w") as f:
+        f.writelines(lines)
+
+    os.system("git add facts.txt")
+    os.system('git commit -m "delete fact"')
+    os.system("git push")
+
+    return jsonify("suppression effectuée")
 
 
 # --- RESET CONNAISSANCES
@@ -414,7 +416,15 @@ def reset_memory():
 
     save_memory(memory)
 
-    return jsonify("LA MEMOIRE EST VIDE")
+    # --- vider facts.txt
+    with open(FACTS_FILE, "w") as f:
+        f.write("")
+
+    os.system("git add facts.txt")
+    os.system('git commit -m "reset facts"')
+    os.system("git push")
+
+    return jsonify("LA MEMOIRE EST REINITIALISEE")
 
 
 # --- NOUVEAU : reste reveillé
