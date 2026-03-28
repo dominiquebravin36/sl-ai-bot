@@ -3,6 +3,9 @@ from groq import Groq
 import os
 import json
 import time
+import requests
+import base64
+
 
 app = Flask(__name__)
 
@@ -104,8 +107,7 @@ tu dois produire une réponse détaillée, structurée et immersive.
 
 """
 
-
-# --- fichier mémoire persistante
+# --- NOUVEAU : fichier mémoire persistante
 DATA_FILE = "memory.json"
 
 def load_memory():
@@ -118,7 +120,7 @@ def save_memory(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
-# --- structure mémoire
+# --- NOUVEAU : structure mémoire
 memory = load_memory()
 
 if "conversations" not in memory:
@@ -127,61 +129,95 @@ if "conversations" not in memory:
 if "users" not in memory:
     memory["users"] = {}
 
-# --- stockage TXT des facts
+# --- CONFIG GITHUB POUR FACTS TXT
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+GITHUB_REPO = os.environ.get("GITHUB_REPO")
 FACTS_FILE = "facts.txt"
 
+# --- AJOUT : fonction ajout facts (TXT GitHub)
 def add_fact(name, fact):
-    with open(FACTS_FILE, "a") as f:
-        f.write(f"{name}|{fact}\n")
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{FACTS_FILE}"
 
-    os.system("git add facts.txt")
-    os.system('git commit -m "update facts"')
-    os.system("git push")
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        }
 
+        r = requests.get(url, headers=headers)
+
+        if r.status_code == 200:
+            content = r.json()
+            file_content = base64.b64decode(content["content"]).decode("utf-8")
+            sha = content["sha"]
+        else:
+            file_content = ""
+            sha = None
+
+        file_content += f"{name}|{fact}\n"
+        encoded = base64.b64encode(file_content.encode("utf-8")).decode("utf-8")
+
+        data = {
+            "message": "update facts",
+            "content": encoded
+        }
+
+        if sha:
+            data["sha"] = sha
+
+        requests.put(url, headers=headers, json=data)
+
+    except Exception as e:
+        print("ERROR FACT SAVE:", e)
+
+# --- lecture facts TXT GitHub
 def read_facts():
     facts = []
 
-    if not os.path.exists(FACTS_FILE):
-        return facts
+    try:
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{FACTS_FILE}"
 
-    with open(FACTS_FILE, "r") as f:
-        for line in f:
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+
+        r = requests.get(url, headers=headers)
+
+        if r.status_code != 200:
+            return facts
+
+        content = r.json()
+        file_content = base64.b64decode(content["content"]).decode("utf-8")
+
+        for line in file_content.splitlines():
             if "|" in line:
-                name, fact = line.strip().split("|", 1)
+                name, fact = line.split("|", 1)
                 facts.append((name, fact))
+
+    except:
+        pass
 
     return facts
 
 
-# --- fonction ajout facts (conservée pour compatibilité)
-def add_fact_memory(name, fact):
-    name = name.lower()
 
-    if name not in memory["users"]:
-        memory["users"][name] = {"role": "guest", "facts": []}
 
-    if "facts" not in memory["users"][name]:
-        memory["users"][name]["facts"] = []
-
-    memory["users"][name]["facts"].append(fact)
-
-    save_memory(memory)
-
-# --- API/CHAT
 @app.route("/api/chat", methods=["POST"])
 def chat():
     data = request.json
     user_message = data.get("message", "")
     user_id = data.get("user_id", "default")
 
+    # --- AJOUT : détection apprentissage simple
     msg = user_message.lower()
 
-    # --- APPRENTISSAGE (TXT)
     if "retiens que" in msg:
         parts = msg.split("retiens que")
 
         if len(parts) > 1:
             content = parts[1].strip()
+
             words = content.split(" ")
 
             if len(words) > 1:
@@ -191,11 +227,7 @@ def chat():
                 if data.get("user_name", "").lower() not in ["domi", "julien"]:
                     return jsonify("Je ne suis pas autorisé à apprendre de vous.")
 
-                try:
-                    with open("facts.txt", "a") as f:
-                        f.write(f"{name}|{fact}\n")
-                except:
-                    pass
+                add_fact(name, fact)
 
     # --- init mémoire conversation
     if user_id not in memory["conversations"]:
@@ -207,7 +239,7 @@ def chat():
     # --- garder 20 derniers messages
     memory["conversations"][user_id] = memory["conversations"][user_id][-20:]
 
-    # --- rôles
+    # --- NOUVEAU : injecter les rôles connus
     roles_text = ""
     if memory["users"]:
         roles_text = "\nRôles connus des personnes :\n"
@@ -215,15 +247,13 @@ def chat():
             role = info.get("role", "guest")
             roles_text += f"- {name} : {role}\n"
 
-    # --- FACTS TXT
+    # --- AJOUT : injecter facts (TXT GitHub)
     facts_text = ""
-    if os.path.exists("facts.txt"):
+    facts = read_facts()
+    if facts:
         facts_text = "\nInformations connues :\n"
-        with open("facts.txt", "r") as f:
-            for line in f:
-                if "|" in line:
-                    n, fa = line.strip().split("|", 1)
-                    facts_text += f"- {n} : {fa}\n"
+        for name, fact in facts:
+            facts_text += f"- {name} : {fact}\n"
 
     try:
         response = client.chat.completions.create(
@@ -233,35 +263,12 @@ def chat():
             ] + memory["conversations"][user_id]
         )
 
-        tokens_used = response.usage.total_tokens if hasattr(response, "usage") else 0
-
         reply = response.choices[0].message.content.strip()
 
-        FILE_PATH = os.path.join(os.path.dirname(__file__), "tokens_log.json")
-
-        try:
-            if os.path.exists(FILE_PATH):
-                with open(FILE_PATH, "r") as f:
-                    data_log = json.load(f)
-            else:
-                data_log = []
-        except:
-            data_log = []
-
-        entry = {
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "tokens": tokens_used
-        }
-
-        data_log.append(entry)
-
-        try:
-            with open(FILE_PATH, "w") as f:
-                json.dump(data_log, f, indent=2)
-        except:
-            pass
-
+        # --- stocker réponse IA
         memory["conversations"][user_id].append({"role": "assistant", "content": reply})
+
+        # --- sauvegarde persistante
         save_memory(memory)
 
         return jsonify(reply)
@@ -269,7 +276,8 @@ def chat():
     except Exception as e:
         return jsonify(f"Erreur IA: {str(e)}")
 
-# --- COMPTEUR TOKENS
+
+# --- NOUVEAU : COMPTEUR TOKENS
 @app.route('/api/tokens', methods=['GET'])
 def get_tokens():
     FILE_PATH = os.path.join(os.path.dirname(__file__), "tokens_log.json")
@@ -314,7 +322,7 @@ def get_tokens():
     }
 
 
-# --- SET ROLE
+# --- NOUVEAU : SET ROLE
 @app.route("/set_role", methods=["POST"])
 def set_role():
     data = request.json
@@ -335,7 +343,7 @@ def set_role():
     return ""
 
 
-# --- GET ROLE
+# --- NOUVEAU : GET ROLE
 @app.route("/get_role", methods=["POST"])
 def get_role():
     data = request.json
@@ -347,7 +355,7 @@ def get_role():
     return jsonify(role)
 
 
-# --- DONNE LA LISTE DES CONNAISSANCES
+# --- NOUVEAU : DONNE LA LISTE DES CONNAISSANCES
 @app.route("/get_facts", methods=["GET"])
 def get_facts():
     facts_list = []
@@ -362,35 +370,51 @@ def get_facts():
     return jsonify(facts_list)
 
 
-# --- SUPPRIME UNE CONNAISSANCE
+# --- NOUVEAU : SUPPRIME UNE CONNAISSANCE
 @app.route("/delete_fact", methods=["POST"])
 def delete_fact():
     data = request.json
     index_to_delete = int(data.get("index", -1))
 
-    if not os.path.exists(FACTS_FILE):
+    facts = read_facts()
+
+    if index_to_delete < 1 or index_to_delete > len(facts):
         return jsonify("not_found")
 
-    lines = []
-    with open(FACTS_FILE, "r") as f:
-        lines = f.readlines()
+    del facts[index_to_delete - 1]
 
-    if index_to_delete < 1 or index_to_delete > len(lines):
-        return jsonify("not_found")
+    try:
+        content = ""
+        for name, fact in facts:
+            content += f"{name}|{fact}\n"
 
-    del lines[index_to_delete - 1]
+        encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
 
-    with open(FACTS_FILE, "w") as f:
-        f.writelines(lines)
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{FACTS_FILE}"
 
-    os.system("git add facts.txt")
-    os.system('git commit -m "delete fact"')
-    os.system("git push")
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        }
 
-    return jsonify("suppression effectuée")
+        r = requests.get(url, headers=headers)
+        sha = r.json()["sha"]
+
+        data_git = {
+            "message": "delete fact",
+            "content": encoded,
+            "sha": sha
+        }
+
+        requests.put(url, headers=headers, json=data_git)
+
+    except:
+        pass
+
+    return jsonify("ok")
 
 
-# --- RESET CONNAISSANCES
+# --- NOUVEAU : RESET CONNAISSANCES
 @app.route("/reset_memory", methods=["POST"])
 def reset_memory():
     data = request.json
@@ -407,15 +431,31 @@ def reset_memory():
 
     save_memory(memory)
 
-    # --- vider facts.txt
-    with open(FACTS_FILE, "w") as f:
-        f.write("")
+    try:
+        encoded = base64.b64encode("".encode("utf-8")).decode("utf-8")
 
-    os.system("git add facts.txt")
-    os.system('git commit -m "reset facts"')
-    os.system("git push")
+        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{FACTS_FILE}"
 
-    return jsonify("LA MEMOIRE EST REINITIALISEE")
+        headers = {
+            "Authorization": f"token {GITHUB_TOKEN}",
+            "Accept": "application/vnd.github.v3+json"
+        }
+
+        r = requests.get(url, headers=headers)
+        sha = r.json()["sha"]
+
+        data_git = {
+            "message": "reset facts",
+            "content": encoded,
+            "sha": sha
+        }
+
+        requests.put(url, headers=headers, json=data_git)
+
+    except:
+        pass
+
+    return jsonify("LA MEMOIRE EST VIDE")
 
 
 # --- NOUVEAU : reste reveillé
