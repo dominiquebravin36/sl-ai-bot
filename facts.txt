@@ -4,7 +4,7 @@ frémont|est capitaine de nos yachts
 messages|permet d'envoyer un message privé d'un utilisateur à un autre
 frémont|= fremont
 julien|aime le whisky sec
-
 domi|aime le champagne
 le|whisky est une boisson
 le|champagne est une boisson
+bisous|tu ne dois pas réagir
