@@ -4,46 +4,9 @@ import os
 import json
 import time
 
-
 app = Flask(__name__)
 
 client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-
-# --- NOUVEAU : fichier mémoire persistante
-DATA_FILE = "memory.json"
-
-def load_memory():
-    if not os.path.exists(DATA_FILE):
-        return {}
-    with open(DATA_FILE, "r") as f:
-        return json.load(f)
-
-def save_memory(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f)
-
-# --- NOUVEAU : structure mémoire
-memory = load_memory()
-
-if "conversations" not in memory:
-    memory["conversations"] = {}
-
-if "users" not in memory:
-    memory["users"] = {}
-
-# --- AJOUT : fonction ajout facts
-def add_fact(name, fact):
-    name = name.lower()
-
-    if name not in memory["users"]:
-        memory["users"][name] = {"role": "guest", "facts": []}
-
-    if "facts" not in memory["users"][name]:
-        memory["users"][name]["facts"] = []
-
-    memory["users"][name]["facts"].append(fact)
-
-    save_memory(memory)
 
 SYSTEM_PROMPT = """
 Tu es Marcel, un employé dans une maison privée dans Second Life.
@@ -141,6 +104,69 @@ tu dois produire une réponse détaillée, structurée et immersive.
 
 """
 
+
+# --- NOUVEAU : fichier mémoire persistante
+DATA_FILE = "memory.json"
+
+def load_memory():
+    if not os.path.exists(DATA_FILE):
+        return {}
+    with open(DATA_FILE, "r") as f:
+        return json.load(f)
+
+def save_memory(data):
+    with open(DATA_FILE, "w") as f:
+        json.dump(data, f)
+
+# --- NOUVEAU : structure mémoire
+memory = load_memory()
+
+if "conversations" not in memory:
+    memory["conversations"] = {}
+
+if "users" not in memory:
+    memory["users"] = {}
+
+# --- AJOUT : stockage TXT des facts
+FACTS_FILE = "facts.txt"
+
+def add_fact(name, fact):
+    with open(FACTS_FILE, "a") as f:
+        f.write(f"{name}|{fact}\n")
+
+    os.system("git add facts.txt")
+    os.system('git commit -m "update facts"')
+    os.system("git push")
+
+def read_facts():
+    facts = []
+
+    if not os.path.exists(FACTS_FILE):
+        return facts
+
+    with open(FACTS_FILE, "r") as f:
+        for line in f:
+            if "|" in line:
+                name, fact = line.strip().split("|", 1)
+                facts.append((name, fact))
+
+    return facts
+
+
+# --- AJOUT : fonction ajout facts (conservée pour compatibilité)
+def add_fact_memory(name, fact):
+    name = name.lower()
+
+    if name not in memory["users"]:
+        memory["users"][name] = {"role": "guest", "facts": []}
+
+    if "facts" not in memory["users"][name]:
+        memory["users"][name]["facts"] = []
+
+    memory["users"][name]["facts"].append(fact)
+
+    save_memory(memory)
+
 @app.route("/api/chat", methods=["POST"])
 def chat():
     data = request.json
@@ -150,8 +176,8 @@ def chat():
     # --- AJOUT : détection apprentissage simple
     msg = user_message.lower()
 
-    if "retiens que" in msg:
-        parts = user_message.split("retiens que")
+    if "retiens" in msg:
+        parts = user_message.lower().split("retiens")
 
         if len(parts) > 1:
             content = parts[1].strip()
@@ -185,10 +211,18 @@ def chat():
             role = info.get("role", "guest")
             roles_text += f"- {name} : {role}\n"
 
-    # --- AJOUT : injecter facts
+    # --- AJOUT : injecter facts (TXT + ancien système conservé)
     facts_text = ""
+
+    # TXT
+    txt_facts = read_facts()
+    if txt_facts:
+        facts_text += "\nInformations connues :\n"
+        for name, fact in txt_facts:
+            facts_text += f"- {name} : {fact}\n"
+
+    # ancien système (conservé)
     if memory["users"]:
-        facts_text = "\nInformations connues :\n"
         for name, info in memory["users"].items():
             facts = info.get("facts", [])
             for f in facts:
@@ -249,7 +283,6 @@ def get_tokens():
     FILE_PATH = os.path.join(os.path.dirname(__file__), "tokens_log.json")
     MAX_TOKENS = 10000
 
-    # lecture
     if not os.path.exists(FILE_PATH):
         data = []
     else:
@@ -262,7 +295,6 @@ def get_tokens():
     now = int(time.time() * 1000)
     limit = now - (24 * 60 * 60 * 1000)
 
-    # filtrage 24h
     filtered = []
     for entry in data:
         try:
@@ -272,13 +304,11 @@ def get_tokens():
         except:
             continue
 
-    # calcul
     used = sum(entry.get("tokens", 0) for entry in filtered)
     remaining = MAX_TOKENS - used
     if remaining < 0:
         remaining = 0
 
-    # nettoyage fichier
     try:
         with open(FILE_PATH, "w") as f:
             json.dump(filtered, f, indent=2)
@@ -331,6 +361,12 @@ def get_facts():
     facts_list = []
     index = 1
 
+    txt_facts = read_facts()
+    for name, fact in txt_facts:
+        facts_list.append(f"{index}. {name} {fact}")
+        index += 1
+
+    # ancien système conservé
     for name, info in memory["users"].items():
         facts = info.get("facts", [])
         for f in facts:
