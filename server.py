@@ -174,15 +174,14 @@ def chat():
     user_message = data.get("message", "")
     user_id = data.get("user_id", "default")
 
-    # --- détection apprentissage simple
     msg = user_message.lower()
 
-    if "marcel retiens que" in msg:
-        parts = user_message.lower().split("marcel retiens que")
+    # --- APPRENTISSAGE (TXT)
+    if "retiens que" in msg:
+        parts = msg.split("retiens que")
 
         if len(parts) > 1:
             content = parts[1].strip()
-
             words = content.split(" ")
 
             if len(words) > 1:
@@ -192,7 +191,11 @@ def chat():
                 if data.get("user_name", "").lower() not in ["domi", "julien"]:
                     return jsonify("Je ne suis pas autorisé à apprendre de vous.")
 
-                add_fact(name, fact)
+                try:
+                    with open("facts.txt", "a") as f:
+                        f.write(f"{name}|{fact}\n")
+                except:
+                    pass
 
     # --- init mémoire conversation
     if user_id not in memory["conversations"]:
@@ -204,7 +207,7 @@ def chat():
     # --- garder 20 derniers messages
     memory["conversations"][user_id] = memory["conversations"][user_id][-20:]
 
-    # --- injecter les rôles connus
+    # --- rôles
     roles_text = ""
     if memory["users"]:
         roles_text = "\nRôles connus des personnes :\n"
@@ -212,22 +215,15 @@ def chat():
             role = info.get("role", "guest")
             roles_text += f"- {name} : {role}\n"
 
-    # --- injecter facts (TXT + ancien système conservé)
+    # --- FACTS TXT
     facts_text = ""
-
-    # TXT
-    txt_facts = read_facts()
-    if txt_facts:
-        facts_text += "\nInformations connues :\n"
-        for name, fact in txt_facts:
-            facts_text += f"- {name} : {fact}\n"
-
-    # ancien système (conservé)
-    if memory["users"]:
-        for name, info in memory["users"].items():
-            facts = info.get("facts", [])
-            for f in facts:
-                facts_text += f"- {name} : {f}\n"
+    if os.path.exists("facts.txt"):
+        facts_text = "\nInformations connues :\n"
+        with open("facts.txt", "r") as f:
+            for line in f:
+                if "|" in line:
+                    n, fa = line.strip().split("|", 1)
+                    facts_text += f"- {n} : {fa}\n"
 
     try:
         response = client.chat.completions.create(
@@ -237,7 +233,6 @@ def chat():
             ] + memory["conversations"][user_id]
         )
 
-        # --- récupération tokens Groq
         tokens_used = response.usage.total_tokens if hasattr(response, "usage") else 0
 
         reply = response.choices[0].message.content.strip()
@@ -247,36 +242,32 @@ def chat():
         try:
             if os.path.exists(FILE_PATH):
                 with open(FILE_PATH, "r") as f:
-                    data = json.load(f)
+                    data_log = json.load(f)
             else:
-                data = []
+                data_log = []
         except:
-            data = []
+            data_log = []
 
         entry = {
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "tokens": tokens_used
         }
 
-        data.append(entry)
+        data_log.append(entry)
 
         try:
             with open(FILE_PATH, "w") as f:
-                json.dump(data, f, indent=2)
+                json.dump(data_log, f, indent=2)
         except:
             pass
 
-        # --- stocker réponse IA
         memory["conversations"][user_id].append({"role": "assistant", "content": reply})
-
-        # --- sauvegarde persistante
         save_memory(memory)
 
         return jsonify(reply)
 
     except Exception as e:
         return jsonify(f"Erreur IA: {str(e)}")
-
 
 # --- COMPTEUR TOKENS
 @app.route('/api/tokens', methods=['GET'])
