@@ -177,8 +177,8 @@ def chat():
     # --- détection apprentissage simple
     msg = user_message.lower()
 
-    if "retiens que" in msg:
-        parts = user_message.lower().split("retiens que")
+    if "marcel retiens que" in msg:
+        parts = user_message.lower().split("marcel retiens que")
 
         if len(parts) > 1:
             content = parts[1].strip()
