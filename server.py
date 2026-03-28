@@ -2,6 +2,8 @@ from flask import Flask, request, jsonify
 from groq import Groq
 import os
 import json
+import time
+
 
 app = Flask(__name__)
 
@@ -213,6 +215,53 @@ def chat():
     except Exception as e:
         return jsonify(f"Erreur IA: {str(e)}")
 
+# --- NOUVEAU : COMPTEUR TOKENS
+@app.route('/api/tokens', methods=['GET'])
+def get_tokens():
+    FILE_PATH = os.path.join(os.path.dirname(__file__), "tokens_log.json")
+    MAX_TOKENS = 10000
+
+    # lecture
+    if not os.path.exists(FILE_PATH):
+        data = []
+    else:
+        try:
+            with open(FILE_PATH, "r") as f:
+                data = json.load(f)
+        except:
+            data = []
+
+    now = int(time.time() * 1000)
+    limit = now - (24 * 60 * 60 * 1000)
+
+    # filtrage 24h
+    filtered = []
+    for entry in data:
+        try:
+            ts = int(time.mktime(time.strptime(entry["timestamp"], "%Y-%m-%dT%H:%M:%SZ")) * 1000)
+            if ts >= limit:
+                filtered.append(entry)
+        except:
+            continue
+
+    # calcul
+    used = sum(entry.get("tokens", 0) for entry in filtered)
+    remaining = MAX_TOKENS - used
+    if remaining < 0:
+        remaining = 0
+
+    # nettoyage fichier
+    try:
+        with open(FILE_PATH, "w") as f:
+            json.dump(filtered, f, indent=2)
+    except:
+        pass
+
+    return {
+        "used": used,
+        "remaining": remaining,
+        "max": MAX_TOKENS
+    }
 
 # --- NOUVEAU : SET ROLE
 @app.route("/set_role", methods=["POST"])
