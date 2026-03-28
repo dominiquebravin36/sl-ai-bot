@@ -7,4 +7,4 @@ julien|aime le whisky sec
 domi|aime le champagne
 le|whisky est une boisson
 le|champagne est une boisson
-bisous|tu ne dois pas réagir
+bisou|tu ne dois pas réagir
