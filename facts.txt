@@ -6,3 +6,4 @@ frémont|= fremont
 julien|aime le whisky sec
 
 domi|aime le champagne
+le|whisky est une boisson
