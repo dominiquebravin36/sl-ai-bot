@@ -105,7 +105,7 @@ tu dois produire une réponse détaillée, structurée et immersive.
 """
 
 
-# --- NOUVEAU : fichier mémoire persistante
+# --- fichier mémoire persistante
 DATA_FILE = "memory.json"
 
 def load_memory():
@@ -118,7 +118,7 @@ def save_memory(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f)
 
-# --- NOUVEAU : structure mémoire
+# --- structure mémoire
 memory = load_memory()
 
 if "conversations" not in memory:
@@ -127,7 +127,7 @@ if "conversations" not in memory:
 if "users" not in memory:
     memory["users"] = {}
 
-# --- AJOUT : stockage TXT des facts
+# --- stockage TXT des facts
 FACTS_FILE = "facts.txt"
 
 def add_fact(name, fact):
@@ -153,7 +153,7 @@ def read_facts():
     return facts
 
 
-# --- AJOUT : fonction ajout facts (conservée pour compatibilité)
+# --- fonction ajout facts (conservée pour compatibilité)
 def add_fact_memory(name, fact):
     name = name.lower()
 
@@ -167,17 +167,18 @@ def add_fact_memory(name, fact):
 
     save_memory(memory)
 
+# --- API/CHAT
 @app.route("/api/chat", methods=["POST"])
 def chat():
     data = request.json
     user_message = data.get("message", "")
     user_id = data.get("user_id", "default")
 
-    # --- AJOUT : détection apprentissage simple
+    # --- détection apprentissage simple
     msg = user_message.lower()
 
-    if "retiens" in msg:
-        parts = user_message.lower().split("retiens")
+    if "retiens que" in msg:
+        parts = user_message.lower().split("retiens que")
 
         if len(parts) > 1:
             content = parts[1].strip()
@@ -203,7 +204,7 @@ def chat():
     # --- garder 20 derniers messages
     memory["conversations"][user_id] = memory["conversations"][user_id][-20:]
 
-    # --- NOUVEAU : injecter les rôles connus
+    # --- injecter les rôles connus
     roles_text = ""
     if memory["users"]:
         roles_text = "\nRôles connus des personnes :\n"
@@ -211,7 +212,7 @@ def chat():
             role = info.get("role", "guest")
             roles_text += f"- {name} : {role}\n"
 
-    # --- AJOUT : injecter facts (TXT + ancien système conservé)
+    # --- injecter facts (TXT + ancien système conservé)
     facts_text = ""
 
     # TXT
@@ -236,7 +237,7 @@ def chat():
             ] + memory["conversations"][user_id]
         )
 
-        # --- AJOUT : récupération tokens Groq
+        # --- récupération tokens Groq
         tokens_used = response.usage.total_tokens if hasattr(response, "usage") else 0
 
         reply = response.choices[0].message.content.strip()
@@ -277,7 +278,7 @@ def chat():
         return jsonify(f"Erreur IA: {str(e)}")
 
 
-# --- NOUVEAU : COMPTEUR TOKENS
+# --- COMPTEUR TOKENS
 @app.route('/api/tokens', methods=['GET'])
 def get_tokens():
     FILE_PATH = os.path.join(os.path.dirname(__file__), "tokens_log.json")
@@ -322,7 +323,7 @@ def get_tokens():
     }
 
 
-# --- NOUVEAU : SET ROLE
+# --- SET ROLE
 @app.route("/set_role", methods=["POST"])
 def set_role():
     data = request.json
@@ -343,7 +344,7 @@ def set_role():
     return ""
 
 
-# --- NOUVEAU : GET ROLE
+# --- GET ROLE
 @app.route("/get_role", methods=["POST"])
 def get_role():
     data = request.json
@@ -355,7 +356,7 @@ def get_role():
     return jsonify(role)
 
 
-# --- NOUVEAU : DONNE LA LISTE DES CONNAISSANCES
+# --- DONNE LA LISTE DES CONNAISSANCES
 @app.route("/get_facts", methods=["GET"])
 def get_facts():
     facts_list = []
@@ -376,7 +377,7 @@ def get_facts():
     return jsonify(facts_list)
 
 
-# --- NOUVEAU : SUPPRIME UNE CONNAISSANCE
+# --- SUPPRIME UNE CONNAISSANCE
 @app.route("/delete_fact", methods=["POST"])
 def delete_fact():
     data = request.json
@@ -396,7 +397,7 @@ def delete_fact():
     return jsonify("not_found")
 
 
-# --- NOUVEAU : RESET CONNAISSANCES
+# --- RESET CONNAISSANCES
 @app.route("/reset_memory", methods=["POST"])
 def reset_memory():
     data = request.json
