@@ -202,7 +202,34 @@ def chat():
             ] + memory["conversations"][user_id]
         )
 
+        # --- AJOUT : récupération tokens Groq
+        tokens_used = response.usage.total_tokens if hasattr(response, "usage") else 0
+
         reply = response.choices[0].message.content.strip()
+
+        FILE_PATH = os.path.join(os.path.dirname(__file__), "tokens_log.json")
+
+        try:
+            if os.path.exists(FILE_PATH):
+                with open(FILE_PATH, "r") as f:
+                    data = json.load(f)
+            else:
+                data = []
+        except:
+            data = []
+
+        entry = {
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "tokens": tokens_used
+        }
+
+        data.append(entry)
+
+        try:
+            with open(FILE_PATH, "w") as f:
+                json.dump(data, f, indent=2)
+        except:
+            pass
 
         # --- stocker réponse IA
         memory["conversations"][user_id].append({"role": "assistant", "content": reply})
@@ -214,6 +241,7 @@ def chat():
 
     except Exception as e:
         return jsonify(f"Erreur IA: {str(e)}")
+
 
 # --- NOUVEAU : COMPTEUR TOKENS
 @app.route('/api/tokens', methods=['GET'])
@@ -262,6 +290,7 @@ def get_tokens():
         "remaining": remaining,
         "max": MAX_TOKENS
     }
+
 
 # --- NOUVEAU : SET ROLE
 @app.route("/set_role", methods=["POST"])
