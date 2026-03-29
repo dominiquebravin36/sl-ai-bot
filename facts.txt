@@ -9,3 +9,4 @@ le|whisky est une boisson
 le|champagne est une boisson
 bisou|tu ne dois pas réagir
 le|galaxie est un de nos yachts
+le|galaxie ii est un de nos yachts
