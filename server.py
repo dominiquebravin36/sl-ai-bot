@@ -328,7 +328,7 @@ def get_tokens():
     if add == "1":
         data.append({
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "tokens": 50
+            "tokens": 100
         })
 
     # =====================================================
