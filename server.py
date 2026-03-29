@@ -307,6 +307,7 @@ def get_tokens():
     FILE_PATH = os.path.join(os.path.dirname(__file__), "tokens_log.json")
     MAX_TOKENS = 10000
 
+    # --- charger données existantes
     if not os.path.exists(FILE_PATH):
         data = []
     else:
@@ -319,6 +320,20 @@ def get_tokens():
     now = int(time.time() * 1000)
     limit = now - (24 * 60 * 60 * 1000)
 
+    # =====================================================
+    # --- AJOUT AUTOMATIQUE SI DEMANDÉ
+    # =====================================================
+    add = request.args.get("add")
+
+    if add == "1":
+        data.append({
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "tokens": 50
+        })
+
+    # =====================================================
+
+    # --- filtrer 24h
     filtered = []
     for entry in data:
         try:
@@ -328,11 +343,13 @@ def get_tokens():
         except:
             continue
 
+    # --- calcul
     used = sum(entry.get("tokens", 0) for entry in filtered)
     remaining = MAX_TOKENS - used
     if remaining < 0:
         remaining = 0
 
+    # --- sauvegarde
     try:
         with open(FILE_PATH, "w") as f:
             json.dump(filtered, f, indent=2)
