@@ -225,8 +225,6 @@ def read_facts():
     return facts
 
 
-
-
 @app.route("/api/chat", methods=["POST"])
 def chat():
     data = request.json
@@ -249,7 +247,8 @@ def chat():
                 fact = " ".join(words[1:])
 
                 if data.get("user_name", "").lower() not in ["domi", "julien"]:
-                    return jsonify("Je ne suis pas autorisé à apprendre de vous.")
+                    from flask import Response
+                    return Response("Je ne suis pas autorisé à apprendre de vous.", mimetype='text/plain')
 
                 add_fact(name, fact)
 
@@ -295,10 +294,12 @@ def chat():
         # --- sauvegarde persistante
         save_memory(memory)
 
-        return jsonify(reply)
+        from flask import Response
+        return Response(reply, mimetype='text/plain')
 
     except Exception as e:
-        return jsonify(f"Erreur IA: {str(e)}")
+        from flask import Response
+        return Response(f"Erreur IA: {str(e)}", mimetype='text/plain')
 
 
 # --- NOUVEAU : COMPTEUR TOKENS
