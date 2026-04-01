@@ -8,5 +8,6 @@ domi|aime le champagne
 le|whisky est une boisson
 le|champagne est une boisson
 bisou|tu ne dois pas réagir
-le|galaxie est un de nos yachts
-le|galaxie ii est un de nos yachts
+galaxie | est un de nos yachts
+galaxie ii | est un de nos yachts
+quelqu'un demande a boire | tu dois lui dire que tu est a son service
