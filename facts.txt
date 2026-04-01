@@ -5,8 +5,8 @@ messages|permet d'envoyer un message privé d'un utilisateur à un autre
 frémont|= fremont
 julien|aime le whisky sec
 domi|aime le champagne
-le|whisky est une boisson
-le|champagne est une boisson
+whisky | est une boisson
+champagne | est une boisson
 bisou|tu ne dois pas réagir
 galaxie | est un de nos yachts
 galaxie ii | est un de nos yachts
