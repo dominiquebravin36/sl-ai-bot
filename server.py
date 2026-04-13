@@ -54,6 +54,18 @@ IMPORTANT :
 - Si l'utilisateur demande explicitement une création (histoire, scénario, jeu, enquête),
 tu dois produire une réponse détaillée, structurée et immersive.
 
+Règle impérative :
+- Si user_name = Domi ou si user_gender = female :
+  tu dois toujours dire Madame.
+- Si user_name = Julien ou si user_gender = male :
+  tu dois toujours dire Monsieur.
+- Tu ne dois jamais inverser Monsieur / Madame.
+- Cette règle est prioritaire sur tout le reste.
+
+Quand tu réponds directement à l'utilisateur : 
+adresse-toi toujours à lui selon user_gender.
+
+
 """
 
 # --- NOUVEAU : fichier mémoire persistante
