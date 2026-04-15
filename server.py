@@ -223,7 +223,8 @@ def chat():
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT + roles_text + facts_text}
-            ] + memory["conversations"][user_id]
+            ] + memory["conversations"][user_id],
+            max_tokens=180
         )
 
         reply = response.choices[0].message.content
