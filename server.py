@@ -187,8 +187,18 @@ def chat():
     if user_id not in memory["conversations"]:
         memory["conversations"][user_id] = []
 
-    # --- ajout message utilisateur
-    memory["conversations"][user_id].append({"role": "user", "content": user_message})
+    # --- ajout message utilisateur enrichi contexte identité
+    enriched_message = (
+        f"[Identité utilisateur]\n"
+        f"Nom : {data.get('user_name', '')}\n"
+        f"Genre : {data.get('user_gender', '')}\n\n"
+        f"{user_message}"
+    )
+    
+    memory["conversations"][user_id].append({
+        "role": "user",
+        "content": enriched_message
+    })
 
     # --- garder 20 derniers messages
     memory["conversations"][user_id] = memory["conversations"][user_id][-20:]
