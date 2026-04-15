@@ -227,7 +227,11 @@ def chat():
             ] + memory["conversations"][user_id]
         )
 
-        reply = response.choices[0].message.content.strip()
+        reply = response.choices[0].message.content
+        if not reply:
+            reply = "Je n'ai pas de réponse pour le moment."
+        
+        reply = reply.strip()
 
         # --- stocker réponse IA
         memory["conversations"][user_id].append({"role": "assistant", "content": reply})
@@ -240,6 +244,10 @@ def chat():
 
     except Exception as e:
         from flask import Response
+
+        print("QUESTION :", user_message)
+        print("REPONSE IA :", reply)
+      
         return Response(f"Erreur IA: {str(e)}", mimetype='text/plain')
 
 
