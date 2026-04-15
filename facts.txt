@@ -20,3 +20,4 @@ si|on prononce marcel, tu est obligé de repondre
 julien|aime la couleur rouge
 julien|aime les tenues un peu transparentes
 julien|est mon mari
+si|tu n'a pas de réponses tu dois dire je n'ai pas de reponse
