@@ -194,14 +194,25 @@ def chat():
             role = info.get("role", "guest")
             roles_text += f"- {name} : {role}\n"
 
-    # --- AJOUT : injecter facts (TXT GitHub)
+   
+      # --- FACTS FILTRÉS : seulement la personne qui parle + règles utiles
     facts_text = ""
     facts = read_facts()
     if facts:
-        facts_text = "\nInformations connues :\n"
-        for name, fact in facts:
-            facts_text += f"- {name} : {fact}\n"
+        current_user = data.get("user_name", "").strip().lower()
 
+        facts_text = "\nInformations connues utiles :\n"
+
+        for name, fact in facts:
+            clean_name = name.strip().lower()
+
+            # faits de la personne qui parle
+            if clean_name == current_user:
+                facts_text += f"- {fact}\n"
+
+            # faits généraux utiles à tous
+            elif clean_name in ["maison", "marcel", "messages", "boisson"]:
+                facts_text += f"- {name} : {fact}\n"
     try:
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
