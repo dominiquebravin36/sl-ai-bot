@@ -207,7 +207,7 @@ def chat():
             clean_name = name.strip().lower()
 
             # faits de la personne qui parle
-            if clean_name == current_user:
+            if clean_name in current_user:
                 facts_text += f"- {fact}\n"
 
             # faits généraux utiles à tous
