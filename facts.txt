@@ -1,4 +1,3 @@
-
 frémont|est employé
 frémont|est capitaine de nos yachts
 messages|permet d'envoyer un message privé d'un utilisateur à un autre
