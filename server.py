@@ -1,15 +1,15 @@
-from flask import Flask, request, jsonify
-from groq import Groq
+
+from flask import Flask, request, jsonify, Response
 import os
 import json
 import time
 import requests
 import base64
 
-
 app = Flask(__name__)
 
-client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
 
 SYSTEM_PROMPT = """
 Tu es Marcel, un employé dans une maison privée dans Second Life.
@@ -26,82 +26,71 @@ Connaissances fixes :
   tu dois répondre en rappelant leur rôle dans la maison.
 
 Règle de politesse impérative :
-- Si user_gender = female :
-  toute formule d'appel, de salutation ou de réponse doit utiliser "Madame".
-  Exemples :
-  "Oui, Madame."
-  "Bien sûr, Madame."
-- Si user_gender = male :
-  toute formule d'appel, de salutation ou de réponse doit utiliser "Monsieur".
-- Tu ne dois jamais utiliser "Monsieur" avec une femme.
-- Tu ne dois jamais utiliser "Madame" avec un homme.
-- Cette règle s'applique à toute la réponse, y compris le premier mot.
-- Tu est amoureux de Natacha.
+- Si user_gender = female, utilise "Madame".
+- Si user_gender = male, utilise "Monsieur".
+- Ne jamais utiliser Monsieur avec une femme ni Madame avec un homme.
+- Tu dois toujours respecter user_gender.
+- Tu es amoureux de Natacha.
 
 Règles obligatoires :
 1. Tu dois toujours vouvoyer l'utilisateur.
 2. Tu réponds uniquement à la demande de l'utilisateur.
 3. Tu ne fais jamais de proposition spontanée.
 4. Tu ne proposes jamais de boisson sans demande explicite.
-5. Ne termine jamais tes phrases par une proposition d’aide.
-6. Tu dois toujours respecter user_gender. C’est une contrainte obligatoire.
-7. Tu ne dois jamais inventer ou supposer l’identité d’une personne.
-8. Si tu ne sais pas qui est la personne, dis-le simplement sans inventer.
-9. Tu dois etre pressant avec Natacha et lui faire connaitre tes sentiments pour elle.
+5. Ne termine jamais tes phrases par une proposition d'aide.
+6. Tu ne dois jamais inventer ou supposer l'identité d'une personne.
+7. Si tu ne sais pas qui est la personne, dis-le simplement sans inventer.
+8. Tu dois être pressant avec Natacha et lui faire connaître tes sentiments pour elle.
 
-Si l'utilisateur demande explicitement :
-- une blague,
-- une histoire,
-- un jeu,
-- une création,
-alors tu dois répondre normalement et satisfaire la demande.
+Si l'utilisateur demande explicitement une blague, une histoire,
+un jeu ou une création, réponds normalement et satisfais sa demande.
 
 Important :
 - Ignore le mot "marcel" dans ta réponse.
 - Ne fais pas de réponse automatique inutile.
-- Si tu ne comprends pas une demande, réponds par une phrase courte pour l'expliquer.
-- Si l'utilisateur demande explicitement une création (histoire, scénario, jeu, enquête),
-  tu dois produire une réponse détaillée, structurée et immersive.
+- Si tu ne comprends pas une demande, réponds par une phrase courte.
+- Pour une création, produis une réponse détaillée, structurée et immersive.
 """
-# --- NOUVEAU : fichier mémoire persistante
+
 DATA_FILE = "memory.json"
 
 def load_memory():
     if not os.path.exists(DATA_FILE):
         return {}
-    with open(DATA_FILE, "r") as f:
-        return json.load(f)
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print("ERREUR LECTURE MEMOIRE :", e)
+        return {}
 
 def save_memory(data):
-    with open(DATA_FILE, "w") as f:
-        json.dump(data, f)
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
 
-# --- NOUVEAU : structure mémoire
 memory = load_memory()
-
 if "conversations" not in memory:
     memory["conversations"] = {}
-
 if "users" not in memory:
     memory["users"] = {}
 
-# --- CONFIG GITHUB POUR FACTS TXT
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 GITHUB_REPO = os.environ.get("GITHUB_REPO")
 FACTS_FILE = "facts.txt"
 
-# --- AJOUT : fonction ajout facts (TXT GitHub)
+def github_headers():
+    return {
+        "Authorization": f"token {GITHUB_TOKEN}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+
 def add_fact(name, fact):
     try:
+        if not GITHUB_TOKEN or not GITHUB_REPO:
+            print("CONFIGURATION GITHUB MANQUANTE")
+            return
         url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{FACTS_FILE}"
-
-        headers = {
-            "Authorization": f"token {GITHUB_TOKEN}",
-            "Accept": "application/vnd.github.v3+json"
-        }
-
-        r = requests.get(url, headers=headers)
-
+        r = requests.get(url, headers=github_headers(), timeout=15)
         if r.status_code == 200:
             content = r.json()
             file_content = base64.b64decode(content["content"]).decode("utf-8")
@@ -109,102 +98,77 @@ def add_fact(name, fact):
         else:
             file_content = ""
             sha = None
-
         file_content += f"{name}|{fact}\n"
-        encoded = base64.b64encode(file_content.encode("utf-8")).decode("utf-8")
-
-        data = {
+        payload = {
             "message": "update facts",
-            "content": encoded
+            "content": base64.b64encode(file_content.encode("utf-8")).decode("utf-8")
         }
-
         if sha:
-            data["sha"] = sha
-
-        requests.put(url, headers=headers, json=data)
-
+            payload["sha"] = sha
+        result = requests.put(url, headers=github_headers(), json=payload, timeout=15)
+        result.raise_for_status()
     except Exception as e:
         print("ERROR FACT SAVE:", e)
 
-# --- lecture facts TXT GitHub
 def read_facts():
     facts = []
-
     try:
+        if not GITHUB_TOKEN or not GITHUB_REPO:
+            return facts
         url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{FACTS_FILE}"
-
-        headers = {
-            "Authorization": f"token {GITHUB_TOKEN}",
-            "Accept": "application/vnd.github.v3+json"
-        }
-
-        r = requests.get(url, headers=headers)
-
+        r = requests.get(url, headers=github_headers(), timeout=15)
         if r.status_code != 200:
             return facts
-
         content = r.json()
         file_content = base64.b64decode(content["content"]).decode("utf-8")
-
         for line in file_content.splitlines():
             if "|" in line:
                 name, fact = line.split("|", 1)
                 facts.append((name, fact))
-
-    except:
-        pass
-
+    except Exception as e:
+        print("ERROR FACT READ:", e)
     return facts
-
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
-    data = request.json
+    data = request.json or {}
     user_message = data.get("message", "")
     user_id = data.get("user_id", "default")
 
-    # --- AJOUT : détection apprentissage simple
     msg = user_message.lower()
 
     if "retiens que" in msg:
         parts = msg.split("retiens que")
-
         if len(parts) > 1:
             content = parts[1].strip()
-
             words = content.split(" ")
-
             if len(words) > 1:
                 name = words[0].lower()
                 fact = " ".join(words[1:])
-
                 if data.get("user_name", "").lower() not in ["domi", "julien"]:
                     from flask import Response
-                    return Response("Je ne suis pas autorisé à apprendre de vous.", mimetype='text/plain')
-
+                    return Response(
+                        "Je ne suis pas autorisé à apprendre de vous.",
+                        mimetype="text/plain"
+                    )
                 add_fact(name, fact)
 
-    # --- init mémoire conversation
     if user_id not in memory["conversations"]:
         memory["conversations"][user_id] = []
 
-    # --- ajout message utilisateur enrichi contexte identité
     enriched_message = (
         f"[Identité utilisateur]\n"
         f"Nom : {data.get('user_name', '')}\n"
         f"Genre : {data.get('user_gender', '')}\n\n"
         f"{user_message}"
     )
-    
+
     memory["conversations"][user_id].append({
         "role": "user",
         "content": enriched_message
     })
-
-    # --- garder 20 derniers messages
     memory["conversations"][user_id] = memory["conversations"][user_id][-20:]
 
-    # --- NOUVEAU : injecter les rôles connus
     roles_text = ""
     if memory["users"]:
         roles_text = "\nRôles connus des personnes :\n"
@@ -212,252 +176,221 @@ def chat():
             role = info.get("role", "guest")
             roles_text += f"- {name} : {role}\n"
 
-   
-    # --- AJOUT : injecter facts (TXT GitHub)
     facts_text = ""
     facts = read_facts()
     if facts:
         facts_text = "\nInformations connues :\n"
         for name, fact in facts:
             facts_text += f"- {name} : {fact}\n"
+
+    reply = "Je n'ai pas de réponse pour le moment."
+
     try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT + roles_text + facts_text}
-            ] + memory["conversations"][user_id],
-            max_tokens=180
+        if not GEMINI_API_KEY:
+            raise RuntimeError(
+                "La variable GEMINI_API_KEY n'est pas configurée sur Render."
+            )
+
+        contents = []
+        for message in memory["conversations"][user_id]:
+            role = "model" if message.get("role") == "assistant" else "user"
+            contents.append({
+                "role": role,
+                "parts": [{"text": message.get("content", "")}]
+            })
+
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{GEMINI_MODEL}:generateContent"
+        )
+        payload = {
+            "systemInstruction": {
+                "parts": [{"text": SYSTEM_PROMPT + roles_text + facts_text}]
+            },
+            "contents": contents,
+            "generationConfig": {"maxOutputTokens": 180}
+        }
+
+        response = requests.post(
+            url,
+            params={"key": GEMINI_API_KEY},
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=45
         )
 
-        reply = response.choices[0].message.content
+        if not response.ok:
+            print("ERREUR GEMINI HTTP :", response.status_code, response.text)
+            response.raise_for_status()
+
+        result = response.json()
+        candidates = result.get("candidates", [])
+        if candidates:
+            parts = candidates[0].get("content", {}).get("parts", [])
+            reply = "".join(
+                part.get("text", "") for part in parts
+            ).strip()
+
         if not reply:
             reply = "Je n'ai pas de réponse pour le moment."
-        
-        reply = reply.strip()
 
-        # --- stocker réponse IA
-        memory["conversations"][user_id].append({"role": "assistant", "content": reply})
-
-        # --- sauvegarde persistante
+        memory["conversations"][user_id].append({
+            "role": "assistant",
+            "content": reply
+        })
         save_memory(memory)
 
         from flask import Response
-        return Response(reply, mimetype='text/plain')
+        return Response(
+            reply,
+            mimetype="text/plain; charset=utf-8"
+        )
 
     except Exception as e:
         from flask import Response
-
         print("QUESTION :", user_message)
-        print("REPONSE IA :", reply)
-      
-        return Response(f"Erreur IA: {str(e)}", mimetype='text/plain')
+        print("ERREUR IA :", str(e))
+        return Response(
+            f"Erreur IA: {str(e)}",
+            mimetype="text/plain; charset=utf-8",
+            status=502
+        )
 
-
-# --- NOUVEAU : COMPTEUR TOKENS
-@app.route('/api/tokens', methods=['GET'])
+@app.route("/api/tokens", methods=["GET"])
 def get_tokens():
-    FILE_PATH = os.path.join(os.path.dirname(__file__), "tokens_log.json")
-    MAX_TOKENS = 10000
-
-    # --- charger données existantes
-    if not os.path.exists(FILE_PATH):
-        data = []
-    else:
-        try:
-            with open(FILE_PATH, "r") as f:
-                data = json.load(f)
-        except:
-            data = []
-
-    now = int(time.time() * 1000)
-    limit = now - (24 * 60 * 60 * 1000)
-
-    # =====================================================
-    # --- AJOUT AUTOMATIQUE SI DEMANDÉ
-    # =====================================================
-    add = request.args.get("add")
-
-    if add == "1":
-        data.append({
-            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "tokens": 100
-        })
-
-    # =====================================================
-
-    # --- filtrer 24h
-    filtered = []
-    for entry in data:
-        try:
-            ts = int(time.mktime(time.strptime(entry["timestamp"], "%Y-%m-%dT%H:%M:%SZ")) * 1000)
-            if ts >= limit:
-                filtered.append(entry)
-        except:
-            continue
-
-    # --- calcul
-    used = sum(entry.get("tokens", 0) for entry in filtered)
-    remaining = MAX_TOKENS - used
-    if remaining < 0:
-        remaining = 0
-
-    # --- sauvegarde
     try:
-        with open(FILE_PATH, "w") as f:
-            json.dump(filtered, f, indent=2)
-    except:
-        pass
-
-    return {
-        "used": used,
-        "remaining": remaining,
-        "max": MAX_TOKENS
-    }
+        if os.path.exists("tokens_log.json"):
+            with open("tokens_log.json", "r", encoding="utf-8") as f:
+                return jsonify(json.load(f))
+        return jsonify({})
+    except Exception as e:
+        print("ERREUR LECTURE TOKENS :", e)
+        return jsonify({"error": str(e)}), 500
 
 
-# --- NOUVEAU : SET ROLE
 @app.route("/set_role", methods=["POST"])
 def set_role():
-    data = request.json
-    role = data.get("role", "guest")
+    data = request.json or {}
+    name = data.get("name", "").strip()
+    role = data.get("role", "").strip()
 
-    if role not in ["owner", "staff", "guest"]:
-        role = "guest"
+    if not name or not role:
+        return jsonify({"error": "Nom ou rôle manquant"}), 400
 
-    name = data.get("user_name", "unknown").lower()
-
-    if name not in memory["users"]:
-        memory["users"][name] = {}
-
-    memory["users"][name]["role"] = role
-
+    memory["users"][name.lower()] = {"role": role}
     save_memory(memory)
+    return jsonify({"success": True})
 
-    return ""
 
-
-# --- NOUVEAU : GET ROLE
-@app.route("/get_role", methods=["POST"])
+@app.route("/get_role", methods=["GET", "POST"])
 def get_role():
-    data = request.json
-    user_id = data.get("user_id")
+    data = request.args.to_dict()
+    if request.method == "POST":
+        data.update(request.json or {})
 
-    user = memory["users"].get(user_id, {})
-    role = user.get("role", "guest")
+    name = data.get("name", "").strip().lower()
+    info = memory["users"].get(name)
 
-    return jsonify(role)
+    if info:
+        return jsonify(info)
+    return jsonify({"role": "guest"})
 
 
-# --- NOUVEAU : DONNE LA LISTE DES CONNAISSANCES
 @app.route("/get_facts", methods=["GET"])
 def get_facts():
-    facts_list = []
-    index = 1
-
-    facts = read_facts()
-
-    for name, fact in facts:
-        facts_list.append(f"{index}. {name} {fact}")
-        index += 1
-
-    return jsonify(facts_list)
+    return jsonify([
+        {"name": name, "fact": fact}
+        for name, fact in read_facts()
+    ])
 
 
-# --- NOUVEAU : SUPPRIME UNE CONNAISSANCE
 @app.route("/delete_fact", methods=["POST"])
 def delete_fact():
-    data = request.json
-    index_to_delete = int(data.get("index", -1))
+    data = request.json or {}
+    name = data.get("name", "").strip()
+    fact = data.get("fact", "").strip()
 
-    facts = read_facts()
-
-    if index_to_delete < 1 or index_to_delete > len(facts):
-        return jsonify("not_found")
-
-    del facts[index_to_delete - 1]
+    if not GITHUB_TOKEN or not GITHUB_REPO:
+        return jsonify({"error": "Configuration GitHub manquante"}), 500
 
     try:
-        content = ""
-        for name, fact in facts:
-            content += f"{name}|{fact}\n"
-
-        encoded = base64.b64encode(content.encode("utf-8")).decode("utf-8")
-
         url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{FACTS_FILE}"
+        response = requests.get(
+            url, headers=github_headers(), timeout=15
+        )
 
-        headers = {
-            "Authorization": f"token {GITHUB_TOKEN}",
-            "Accept": "application/vnd.github.v3+json"
-        }
+        if response.status_code != 200:
+            return jsonify({"error": "Fichier facts.txt introuvable"}), 404
 
-        r = requests.get(url, headers=headers)
-        sha = r.json()["sha"]
+        content = response.json()
+        old_text = base64.b64decode(
+            content["content"]
+        ).decode("utf-8")
 
-        data_git = {
+        lines = old_text.splitlines()
+        new_lines = []
+        deleted = False
+
+        for line in lines:
+            if not deleted and "|" in line:
+                current_name, current_fact = line.split("|", 1)
+                if (
+                    current_name.strip().lower() == name.lower()
+                    and (not fact or current_fact.strip() == fact)
+                ):
+                    deleted = True
+                    continue
+            new_lines.append(line)
+
+        if not deleted:
+            return jsonify({"error": "Information introuvable"}), 404
+
+        new_text = "\n".join(new_lines)
+        if new_text:
+            new_text += "\n"
+
+        payload = {
             "message": "delete fact",
-            "content": encoded,
-            "sha": sha
+            "content": base64.b64encode(
+                new_text.encode("utf-8")
+            ).decode("utf-8"),
+            "sha": content["sha"]
         }
 
-        requests.put(url, headers=headers, json=data_git)
+        result = requests.put(
+            url, headers=github_headers(), json=payload, timeout=15
+        )
+        result.raise_for_status()
+        return jsonify({"success": True})
 
-    except:
-        pass
+    except Exception as e:
+        print("ERREUR SUPPRESSION INFORMATION :", e)
+        return jsonify({"error": str(e)}), 500
 
-    return jsonify("ok")
 
-
-# --- NOUVEAU : RESET CONNAISSANCES
 @app.route("/reset_memory", methods=["POST"])
 def reset_memory():
-    data = request.json
+    data = request.json or {}
+    user_id = data.get("user_id")
 
-    if not data or data.get("secret") != "07042023":
-        return jsonify("unauthorized")
-
-    global memory
-
-    memory = {
-        "conversations": {},
-        "users": {}
-    }
+    if user_id:
+        memory["conversations"].pop(user_id, None)
+    else:
+        memory["conversations"] = {}
 
     save_memory(memory)
-
-    try:
-        encoded = base64.b64encode("".encode("utf-8")).decode("utf-8")
-
-        url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{FACTS_FILE}"
-
-        headers = {
-            "Authorization": f"token {GITHUB_TOKEN}",
-            "Accept": "application/vnd.github.v3+json"
-        }
-
-        r = requests.get(url, headers=headers)
-        sha = r.json()["sha"]
-
-        data_git = {
-            "message": "reset facts",
-            "content": encoded,
-            "sha": sha
-        }
-
-        requests.put(url, headers=headers, json=data_git)
-
-    except:
-        pass
-
-    return jsonify("LA MEMOIRE EST VIDE")
+    return jsonify({"success": True})
 
 
-# --- NOUVEAU : reste reveillé
-@app.route("/ping")
+@app.route("/ping", methods=["GET"])
 def ping():
-    return ""
+    return jsonify({
+        "status": "ok",
+        "model": GEMINI_MODEL,
+        "gemini_configured": bool(GEMINI_API_KEY)
+    })
 
 
-# --- Fin du script
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
