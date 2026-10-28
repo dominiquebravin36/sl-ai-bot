@@ -8,8 +8,8 @@ import base64
 
 app = Flask(__name__)
 
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
 
 SYSTEM_PROMPT = """
 Tu es Marcel, un employé dans une maison privée dans Second Life.
@@ -54,6 +54,7 @@ Important :
 
 DATA_FILE = "memory.json"
 
+
 def load_memory():
     if not os.path.exists(DATA_FILE):
         return {}
@@ -64,9 +65,11 @@ def load_memory():
         print("ERREUR LECTURE MEMOIRE :", e)
         return {}
 
+
 def save_memory(data):
     with open(DATA_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False)
+
 
 memory = load_memory()
 if "conversations" not in memory:
@@ -78,19 +81,23 @@ GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
 GITHUB_REPO = os.environ.get("GITHUB_REPO")
 FACTS_FILE = "facts.txt"
 
+
 def github_headers():
     return {
         "Authorization": f"token {GITHUB_TOKEN}",
         "Accept": "application/vnd.github.v3+json"
     }
 
+
 def add_fact(name, fact):
     try:
         if not GITHUB_TOKEN or not GITHUB_REPO:
             print("CONFIGURATION GITHUB MANQUANTE")
             return
+
         url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{FACTS_FILE}"
         r = requests.get(url, headers=github_headers(), timeout=15)
+
         if r.status_code == 200:
             content = r.json()
             file_content = base64.b64decode(content["content"]).decode("utf-8")
@@ -98,36 +105,52 @@ def add_fact(name, fact):
         else:
             file_content = ""
             sha = None
+
         file_content += f"{name}|{fact}\n"
         payload = {
             "message": "update facts",
-            "content": base64.b64encode(file_content.encode("utf-8")).decode("utf-8")
+            "content": base64.b64encode(
+                file_content.encode("utf-8")
+            ).decode("utf-8")
         }
+
         if sha:
             payload["sha"] = sha
-        result = requests.put(url, headers=github_headers(), json=payload, timeout=15)
+
+        result = requests.put(
+            url, headers=github_headers(), json=payload, timeout=15
+        )
         result.raise_for_status()
+
     except Exception as e:
         print("ERROR FACT SAVE:", e)
+
 
 def read_facts():
     facts = []
     try:
         if not GITHUB_TOKEN or not GITHUB_REPO:
             return facts
+
         url = f"https://api.github.com/repos/{GITHUB_REPO}/contents/{FACTS_FILE}"
         r = requests.get(url, headers=github_headers(), timeout=15)
+
         if r.status_code != 200:
             return facts
+
         content = r.json()
         file_content = base64.b64decode(content["content"]).decode("utf-8")
+
         for line in file_content.splitlines():
             if "|" in line:
                 name, fact = line.split("|", 1)
                 facts.append((name, fact))
+
     except Exception as e:
         print("ERROR FACT READ:", e)
+
     return facts
+
 
 @app.route("/api/chat", methods=["POST"])
 def chat():
@@ -146,7 +169,6 @@ def chat():
                 name = words[0].lower()
                 fact = " ".join(words[1:])
                 if data.get("user_name", "").lower() not in ["domi", "julien"]:
-                    from flask import Response
                     return Response(
                         "Je ne suis pas autorisé à apprendre de vous.",
                         mimetype="text/plain"
@@ -169,12 +191,9 @@ def chat():
     })
     memory["conversations"][user_id] = memory["conversations"][user_id][-20:]
 
-    roles_text = ""
-    if memory["users"]:
-        roles_text = "\nRôles connus des personnes :\n"
-        for name, info in memory["users"].items():
-            role = info.get("role", "guest")
-            roles_text += f"- {name} : {role}\n"
+    roles_text = "\nRôles connus des personnes :\n"
+    for name, info in memory["users"].items():
+        roles_text += f"- {name} : {info.get('role', 'guest')}\n"
 
     facts_text = ""
     facts = read_facts()
@@ -186,49 +205,57 @@ def chat():
     reply = "Je n'ai pas de réponse pour le moment."
 
     try:
-        if not GEMINI_API_KEY:
+        if not GROQ_API_KEY:
             raise RuntimeError(
-                "La variable GEMINI_API_KEY n'est pas configurée sur Render."
+                "La variable GROQ_API_KEY n'est pas configurée sur Render."
             )
 
-        contents = []
+        messages = [
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT + roles_text + facts_text
+            }
+        ]
+
         for message in memory["conversations"][user_id]:
-            role = "model" if message.get("role") == "assistant" else "user"
-            contents.append({
+            role = (
+                "assistant"
+                if message.get("role") == "assistant"
+                else "user"
+            )
+            messages.append({
                 "role": role,
-                "parts": [{"text": message.get("content", "")}]
+                "content": message.get("content", "")
             })
 
-        url = (
-            "https://generativelanguage.googleapis.com/v1beta/models/"
-            f"{GEMINI_MODEL}:generateContent"
-        )
+        url = "https://api.groq.com/openai/v1/chat/completions"
         payload = {
-            "systemInstruction": {
-                "parts": [{"text": SYSTEM_PROMPT + roles_text + facts_text}]
-            },
-            "contents": contents,
-            "generationConfig": {"maxOutputTokens": 180}
+            "model": GROQ_MODEL,
+            "messages": messages,
+            "max_tokens": 300,
+            "temperature": 0.7
         }
 
         response = requests.post(
             url,
-            params={"key": GEMINI_API_KEY},
+            headers={
+                "Authorization": f"Bearer {GROQ_API_KEY}",
+                "Content-Type": "application/json"
+            },
             json=payload,
-            headers={"Content-Type": "application/json"},
             timeout=45
         )
 
         if not response.ok:
-            print("ERREUR GEMINI HTTP :", response.status_code, response.text)
+            print("ERREUR GROQ HTTP :", response.status_code, response.text)
             response.raise_for_status()
 
         result = response.json()
-        candidates = result.get("candidates", [])
-        if candidates:
-            parts = candidates[0].get("content", {}).get("parts", [])
-            reply = "".join(
-                part.get("text", "") for part in parts
+        choices = result.get("choices", [])
+
+        if choices:
+            reply = (
+                choices[0].get("message", {}).get("content", "") or ""
             ).strip()
 
         if not reply:
@@ -240,18 +267,16 @@ def chat():
         })
         save_memory(memory)
 
-        from flask import Response
         return Response(
             reply,
             mimetype="text/plain; charset=utf-8"
         )
 
     except Exception as e:
-        from flask import Response
         print("QUESTION :", user_message)
         print("ERREUR IA :", str(e))
         return Response(
-            f"Erreur IA: {str(e)}",
+            "Erreur IA : le service est temporairement indisponible.",
             mimetype="text/plain; charset=utf-8",
             status=502
         )
@@ -386,8 +411,8 @@ def reset_memory():
 def ping():
     return jsonify({
         "status": "ok",
-        "model": GEMINI_MODEL,
-        "gemini_configured": bool(GEMINI_API_KEY)
+        "model": GROQ_MODEL,
+        "groq_configured": bool(GROQ_API_KEY)
     })
 
 
